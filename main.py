@@ -1,11 +1,12 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from flask_restful import Api, Resource, reqparse, fields, marshal_with, abort
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.exc import IntegrityError
 import os.path, csv
 
-rqp = reqparse.RequestParser()
+rqp = reqparse.RequestParser()                                              #Define request parser values and their properties
 rqp.add_argument('id', type=int)
-rqp.add_argument('name', type=str, required=True)
+rqp.add_argument('name', type=str)
 rqp.add_argument('mpg', type=float)
 rqp.add_argument('cylinders', type=int)
 rqp.add_argument('displacement', type=float)
@@ -15,20 +16,23 @@ rqp.add_argument('acceleration', type=float)
 rqp.add_argument('model_year', type=int)
 rqp.add_argument('origin', type=str)
 
-app = Flask(__name__)
+drqp = reqparse.RequestParser()                                             #Define request parser values for deleting entries
+drqp.add_argument('id', type=int, required=True, help='Id is required in order to delete a car model.')
+
+app = Flask(__name__)                                                       #Initialize the flask application for the API
 api = Api(app)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'             #Define the database URI
 db = SQLAlchemy(app)
 
-class CarModel(db.Model):
+class CarModel(db.Model):                                                   #Define the columns of the database
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    name = db.Column(db.String(50), nullable=False)
+    name = db.Column(db.String(100), nullable=True)
     mpg = db.Column(db.Float, nullable=True)
     cylinders = db.Column(db.Integer, nullable=True)
     displacement = db.Column(db.Float, nullable=True)
     horsepower = db.Column(db.Float, nullable=True)
     weight = db.Column(db.Float, nullable=True)
-    acceleration = db.Column(db.Float, nullable=False)
+    acceleration = db.Column(db.Float, nullable=True)
     model_year = db.Column(db.Integer, nullable=True)
     origin = db.Column(db.String(30), nullable=True)
 
@@ -37,7 +41,7 @@ class CarModel(db.Model):
                 f"displacement: {self.displacement}, horsepower: {self.horsepower}, weight: {self.weight}, "
                 f"acceleration: {self.acceleration}, model_year: {self.model_year}, origin: {self.origin})")
 
-if not os.path.isfile('./instance/database.db'):
+if not os.path.isfile('./instance/database.db'):                            #Check if database already exists, if not, create it
     with app.app_context():
         db.create_all()
         print('Database was created!')
@@ -55,7 +59,8 @@ if not os.path.isfile('./instance/database.db'):
                     db.session.add(model)
                     db.session.commit()
             
-resource_fields = {
+resource_fields = {                                                         #Define the resource fields that will be returned
+    'id': fields.Integer,                                                   
     'name': fields.String,
     'mpg': fields.Float,
     'cylinders': fields.Integer,
@@ -64,22 +69,67 @@ resource_fields = {
     'weight': fields.Float,
     'acceleration': fields.Float,
     'model_year': fields.Integer,
-    'origin': fields.String
+    'origin': fields.String,
+    'message': fields.String
 }
 
 class Car_Brands(Resource):
 
-    @marshal_with(resource_fields)
-    def get(self):
-        args = rqp.parse_args()
-        filtered_args = {k: v for k, v in args.items() if v}
-        result = CarModel.query.filter_by(**filtered_args).all()
+    @marshal_with(resource_fields)                                          #Marshal the return with the defined resource fields
+    def get(self):                                                          #Find and return the searched entries
+        filtered_args = {k: v for k, v in rqp.parse_args().items() if v}    #Filter the arguments given by the user so that 
+                                                                            #there are no empty values
+        result = CarModel.query.filter_by(**filtered_args).all()            #Filter the database with the given arguments
 
-        if not result:
+        if not result:                                                      #If no result was found, abort
             abort(404, message="None found.")
+
         return result
     
-api.add_resource(Car_Brands, "/Car_Brands")    #<int:car_id>
+    @marshal_with(resource_fields)                                          
+    def post(self):
+        filtered_args = {k: v for k, v in rqp.parse_args().items() if v}    
+        result = CarModel.query.filter_by(**filtered_args).all() 
+
+        if not result:                                                      #Check if there are any entries in the database with 
+                                                                            #the exact same attributes with the ones given by the user
+            try:                                                            #Try to insert the new object in the database
+                with app.app_context():
+                    model = CarModel(**filtered_args)
+                    db.session.add(model)
+                    db.session.commit()
+            except IntegrityError as x:                                     #Catch integrity errors
+                print("error:", x)
+                abort(409, description=x)
+            except:                                                         #Catch any other errors
+                abort(500, description="There was an error with your request.")
+        else:                                                                   
+            abort(409, description="A car with the same characteristics already exist.")    #In case there is another entry
+                                                                                            #very similar to the one given, abort
+
+        return {**filtered_args, "message": "Car model added successfully!"}
+    
+    @marshal_with(resource_fields)
+    def delete(self):                                                       #Delete the entry matching the given id
+        filtered_args = {k: v for k, v in drqp.parse_args().items() if v}   #Filter the arguments given by the user so that there 
+                                                                            #are no empty values
+        
+        try:
+            with app.app_context():
+                result = db.session.get(CarModel, filtered_args['id'])            #Get the object with the specified id given by the user
+                db.session.delete(result)                                   #Delete the entry from the database
+                db.session.commit()
+        except:
+            abort(500, description="There was an error deleting a car model.")
+
+                                                                            #Get the values from the result object
+        result_val = {column.name: getattr(result, column.name) for column in result.__table__.columns} 
+        
+        return {'message': 'Car model deleted successfully!', **result_val}
+
+        
+    
+api.add_resource(Car_Brands, "/Car_Brands")    #<int:car_id>                Add a resource to the API
 
 if __name__ == "__main__":
     app.run(debug=True)
