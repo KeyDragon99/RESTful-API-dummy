@@ -4,20 +4,24 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
 import os.path, csv
 
-rqp = reqparse.RequestParser()                                              #Define request parser values and their properties
-rqp.add_argument('id', type=int)
-rqp.add_argument('name', type=str)
-rqp.add_argument('mpg', type=float)
-rqp.add_argument('cylinders', type=int)
-rqp.add_argument('displacement', type=float)
-rqp.add_argument('horsepower', type=float)
-rqp.add_argument('weight', type=float)
-rqp.add_argument('acceleration', type=float)
-rqp.add_argument('model_year', type=int)
-rqp.add_argument('origin', type=str)
+base_rqp = reqparse.RequestParser()                                         #Define request parser values and their properties
+base_rqp.add_argument('id', type=int)                                       #for basic entry handling in the database
+base_rqp.add_argument('name', type=str)
+base_rqp.add_argument('mpg', type=float)
+base_rqp.add_argument('cylinders', type=int)
+base_rqp.add_argument('displacement', type=float)
+base_rqp.add_argument('horsepower', type=float)
+base_rqp.add_argument('weight', type=float)
+base_rqp.add_argument('acceleration', type=float)
+base_rqp.add_argument('model_year', type=int)
+base_rqp.add_argument('origin', type=str)
 
-drqp = reqparse.RequestParser()                                             #Define request parser values for deleting entries
-drqp.add_argument('id', type=int, required=True, help='Id is required in order to delete a car model.')
+del_rqp = reqparse.RequestParser()                                          #Define request parser values for deleting entries
+del_rqp.add_argument('id', type=int, required=True, help='Id is required in order to delete a car model.')
+
+year_rqp = reqparse.RequestParser()
+year_rqp.add_argument('model_year_1', type=int, required=True, help='Two year dates are required to search in year range')
+year_rqp.add_argument('model_year_2', type=int, required=True, help='Two year dates are required to search in year range')
 
 app = Flask(__name__)                                                       #Initialize the flask application for the API
 api = Api(app)
@@ -76,8 +80,8 @@ resource_fields = {                                                         #Def
 class Car_Brands(Resource):
 
     @marshal_with(resource_fields)                                          #Marshal the return with the defined resource fields
-    def get(self):                                                          #Find and return the searched entries
-        filtered_args = {k: v for k, v in rqp.parse_args().items() if v}    #Filter the arguments given by the user so that 
+    def retrieve_models(self):                                                        #Find and return the searched entries
+        filtered_args = {k: v for k, v in base_rqp.parse_args().items() if v}    #Filter the arguments given by the user so that 
                                                                             #there are no empty values
         result = CarModel.query.filter_by(**filtered_args).all()            #Filter the database with the given arguments
 
@@ -87,8 +91,8 @@ class Car_Brands(Resource):
         return result
     
     @marshal_with(resource_fields)                                          
-    def post(self):
-        filtered_args = {k: v for k, v in rqp.parse_args().items() if v}    
+    def add_model(self):
+        filtered_args = {k: v for k, v in base_rqp.parse_args().items() if v}    
         result = CarModel.query.filter_by(**filtered_args).all() 
 
         if not result:                                                      #Check if there are any entries in the database with 
@@ -110,13 +114,13 @@ class Car_Brands(Resource):
         return {**filtered_args, "message": "Car model added successfully!"}
     
     @marshal_with(resource_fields)
-    def delete(self):                                                       #Delete the entry matching the given id
-        filtered_args = {k: v for k, v in drqp.parse_args().items() if v}   #Filter the arguments given by the user so that there 
-                                                                            #are no empty values
+    def delete_model(self):                                                     #Delete the entry matching the given id
+        filtered_args = {k: v for k, v in del_rqp.parse_args().items() if v}    #Filter the arguments given by the user so that there 
+                                                                                #are no empty values
         
         try:
             with app.app_context():
-                result = db.session.get(CarModel, filtered_args['id'])            #Get the object with the specified id given by the user
+                result = db.session.get(CarModel, filtered_args['id'])      #Get the object with the specified id given by the user
                 db.session.delete(result)                                   #Delete the entry from the database
                 db.session.commit()
         except:
@@ -127,9 +131,38 @@ class Car_Brands(Resource):
         
         return {'message': 'Car model deleted successfully!', **result_val}
 
-        
-    
-api.add_resource(Car_Brands, "/Car_Brands")    #<int:car_id>                Add a resource to the API
+    def dispatch_request(self, *args, **kwargs):
+        # Override dispatch_request to route to the appropriate method
+        if request.method == 'GET':
+            return self.retrieve_models()  # Call custom method for GET requests
+        elif request.method == 'POST':
+            return self.add_model()  # Call custom method for GET requests
+        elif request.method == 'DELETE':
+            return self.delete_model()  # Call custom method for GET requests
+        else:
+            return super(Car_Brands, self).dispatch_request(*args, **kwargs)
+
+class Year_Comparison(Resource):
+
+    @marshal_with(resource_fields)
+    def year_range(self):
+
+        args = year_rqp.parse_args()
+        result = db.session().query(CarModel).filter(CarModel.model_year.between(args['model_year_1'], args['model_year_2'])).all()
+        return result
+
+    def dispatch_request(self, *args, **kwargs):
+        # Override dispatch_request to route to the appropriate method
+        if request.method == 'GET':
+            return self.year_range()  # Call custom method for GET requests
+        else:
+            return super(Car_Brands, self).dispatch_request(*args, **kwargs)
+
+                                                                                            #Add a resource to the API
+api.add_resource(Car_Brands, "/Car_Brands/retrieve_models", "/Car_Brands/delete_model", "/Car_Brands/add_model", 
+                 methods=['GET', 'POST', 'DELETE'])   #<int:car_id> 
+api.add_resource(Year_Comparison, "/Year_Comparison/year_range", 
+                 methods=['GET', 'POST', 'DELETE'])
 
 if __name__ == "__main__":
     app.run(debug=True)
