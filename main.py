@@ -79,9 +79,8 @@ resource_fields = {                                                         #Def
 
 class Car_Brands(Resource):
 
-    @app.route('/get_models', methods=['GET'])                                     #Define the flask request route 
     @marshal_with(resource_fields)                                          #Marshal the return with the defined resource fields
-    def get_model(self):                                                         #Find and return the searched entries
+    def retrieve_models(self):                                                        #Find and return the searched entries
         filtered_args = {k: v for k, v in base_rqp.parse_args().items() if v}    #Filter the arguments given by the user so that 
                                                                             #there are no empty values
         result = CarModel.query.filter_by(**filtered_args).all()            #Filter the database with the given arguments
@@ -91,63 +90,79 @@ class Car_Brands(Resource):
 
         return result
     
-    # @app.route('/post_entry', methods=['POST'])
-    # @marshal_with(resource_fields)                                          
-    # def post_new_entries(self):
-    #     filtered_args = {k: v for k, v in base_rqp.parse_args().items() if v}    
-    #     result = CarModel.query.filter_by(**filtered_args).all() 
+    @marshal_with(resource_fields)                                          
+    def add_model(self):
+        filtered_args = {k: v for k, v in base_rqp.parse_args().items() if v}    
+        result = CarModel.query.filter_by(**filtered_args).all() 
 
-    #     if not result:                                                      #Check if there are any entries in the database with 
-    #                                                                         #the exact same attributes with the ones given by the user
-    #         try:                                                            #Try to insert the new object in the database
-    #             with app.app_context():
-    #                 model = CarModel(**filtered_args)
-    #                 db.session.add(model)
-    #                 db.session.commit()
-    #         except IntegrityError as x:                                     #Catch integrity errors
-    #             print("error:", x)
-    #             abort(409, description=x)
-    #         except:                                                         #Catch any other errors
-    #             abort(500, description="There was an error with your request.")
-    #     else:                                                                   
-    #         abort(409, description="A car with the same characteristics already exist.")    #In case there is another entry
-    #                                                                                         #very similar to the one given, abort
+        if not result:                                                      #Check if there are any entries in the database with 
+                                                                            #the exact same attributes with the ones given by the user
+            try:                                                            #Try to insert the new object in the database
+                with app.app_context():
+                    model = CarModel(**filtered_args)
+                    db.session.add(model)
+                    db.session.commit()
+            except IntegrityError as x:                                     #Catch integrity errors
+                print("error:", x)
+                abort(409, description=x)
+            except:                                                         #Catch any other errors
+                abort(500, description="There was an error with your request.")
+        else:                                                                   
+            abort(409, description="A car with the same characteristics already exist.")    #In case there is another entry
+                                                                                            #very similar to the one given, abort
 
-    #     return {**filtered_args, "message": "Car model added successfully!"}
+        return {**filtered_args, "message": "Car model added successfully!"}
     
-    # @app.route('/delete', methods=['DELETE'])
-    # @marshal_with(resource_fields)
-    # def delete(self):                                                     #Delete the entry matching the given id
-    #     filtered_args = {k: v for k, v in del_rqp.parse_args().items() if v}    #Filter the arguments given by the user so that there 
-    #                                                                             #are no empty values
+    @marshal_with(resource_fields)
+    def delete_model(self):                                                     #Delete the entry matching the given id
+        filtered_args = {k: v for k, v in del_rqp.parse_args().items() if v}    #Filter the arguments given by the user so that there 
+                                                                                #are no empty values
         
-    #     try:
-    #         with app.app_context():
-    #             result = db.session.get(CarModel, filtered_args['id'])      #Get the object with the specified id given by the user
-    #             db.session.delete(result)                                   #Delete the entry from the database
-    #             db.session.commit()
-    #     except:
-    #         abort(500, description="There was an error deleting a car model.")
+        try:
+            with app.app_context():
+                result = db.session.get(CarModel, filtered_args['id'])      #Get the object with the specified id given by the user
+                db.session.delete(result)                                   #Delete the entry from the database
+                db.session.commit()
+        except:
+            abort(500, description="There was an error deleting a car model.")
 
-    #                                                                         #Get the values from the result object
-    #     result_val = {column.name: getattr(result, column.name) for column in result.__table__.columns} 
+                                                                            #Get the values from the result object
+        result_val = {column.name: getattr(result, column.name) for column in result.__table__.columns} 
         
-    #     return {'message': 'Car model deleted successfully!', **result_val}
+        return {'message': 'Car model deleted successfully!', **result_val}
 
-# class Year_Comparison(Resource):
+    def dispatch_request(self, *args, **kwargs):
+        # Override dispatch_request to route to the appropriate method
+        if request.method == 'GET':
+            return self.retrieve_models()  # Call custom method for GET requests
+        elif request.method == 'POST':
+            return self.add_model()  # Call custom method for GET requests
+        elif request.method == 'DELETE':
+            return self.delete_model()  # Call custom method for GET requests
+        else:
+            return super(Car_Brands, self).dispatch_request(*args, **kwargs)
 
-#     @app.route('/get_year_range', methods=['GET'])
-#     @marshal_with(resource_fields)
-#     def get_year_range(self):
+class Year_Comparison(Resource):
 
-#         args = year_rqp.parse_args()
-#         result = db.session().query(CarModel).filter(CarModel.model_year.between(args['model_year_1'], args['model_year_2'])).all()
+    @marshal_with(resource_fields)
+    def year_range(self):
 
-#         return result
+        args = year_rqp.parse_args()
+        result = db.session().query(CarModel).filter(CarModel.model_year.between(args['model_year_1'], args['model_year_2'])).all()
+        return result
+
+    def dispatch_request(self, *args, **kwargs):
+        # Override dispatch_request to route to the appropriate method
+        if request.method == 'GET':
+            return self.year_range()  # Call custom method for GET requests
+        else:
+            return super(Car_Brands, self).dispatch_request(*args, **kwargs)
 
                                                                                             #Add a resource to the API
-api.add_resource(Car_Brands, "/Car_Brands/get_models", "/Car_Brands/delete", "/Car_Brands/post_entry")   #<int:car_id> 
-# api.add_resource(Year_Comparison, "/Year_Comparison/get_year_range")
+api.add_resource(Car_Brands, "/Car_Brands/retrieve_models", "/Car_Brands/delete_model", "/Car_Brands/add_model", 
+                 methods=['GET', 'POST', 'DELETE'])   #<int:car_id> 
+api.add_resource(Year_Comparison, "/Year_Comparison/year_range", 
+                 methods=['GET', 'POST', 'DELETE'])
 
 if __name__ == "__main__":
     app.run(debug=True)
