@@ -80,7 +80,7 @@ resource_fields = {                                                         #Def
 class Car_Brands(Resource):
 
     @marshal_with(resource_fields)                                          #Marshal the return with the defined resource fields
-    def retrieve_models(self):                                                        #Find and return the searched entries
+    def retrieve_models(self):                                                   #Find and return the searched entries
         filtered_args = {k: v for k, v in base_rqp.parse_args().items() if v}    #Filter the arguments given by the user so that 
                                                                             #there are no empty values
         result = CarModel.query.filter_by(**filtered_args).all()            #Filter the database with the given arguments
