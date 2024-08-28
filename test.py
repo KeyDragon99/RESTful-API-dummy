@@ -20,7 +20,8 @@ response = rq.get(url=BASE + "Car_Brands/retrieve_models", json=rqs[2])
 
 if response.status_code == 200:
     data = response.json()
-    print(data)
+    for item in data:
+        print(item)
 else:
     print(f"Error: {response.status_code} - {response.text}")
 
@@ -36,6 +37,7 @@ response = rq.get(url=BASE + "Year_Comparison/year_range", json={'model_year_1':
 
 if response.status_code == 200:
     data = response.json()
-    print(data)
+    for item in data:
+        print(item)
 else:
     print(f"Error: {response.status_code} - {response.text}")

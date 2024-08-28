@@ -134,11 +134,11 @@ class Car_Brands(Resource):
     def dispatch_request(self, *args, **kwargs):
         # Override dispatch_request to route to the appropriate method
         if request.method == 'GET':
-            return self.retrieve_models()  # Call custom method for GET requests
+            return self.retrieve_models()                                   # Call custom method for GET requests
         elif request.method == 'POST':
-            return self.add_model()  # Call custom method for GET requests
+            return self.add_model()                                         # Call custom method for POST requests
         elif request.method == 'DELETE':
-            return self.delete_model()  # Call custom method for GET requests
+            return self.delete_model()                                      # Call custom method for DELETE requests
         else:
             return super(Car_Brands, self).dispatch_request(*args, **kwargs)
 
@@ -154,11 +154,11 @@ class Year_Comparison(Resource):
     def dispatch_request(self, *args, **kwargs):
         # Override dispatch_request to route to the appropriate method
         if request.method == 'GET':
-            return self.year_range()  # Call custom method for GET requests
+            return self.year_range()                                        # Call custom method for GET requests
         else:
             return super(Car_Brands, self).dispatch_request(*args, **kwargs)
 
-                                                                                            #Add a resource to the API
+                                                                            #Add a resource to the API
 api.add_resource(Car_Brands, "/Car_Brands/retrieve_models", "/Car_Brands/delete_model", "/Car_Brands/add_model", 
                  methods=['GET', 'POST', 'DELETE'])   #<int:car_id> 
 api.add_resource(Year_Comparison, "/Year_Comparison/year_range", 
